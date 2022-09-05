@@ -146,8 +146,10 @@ int main(int argc, char* argv[])
     std::cout << "Z-Size of counts: " << counts.sizeZ() << std::endl;
 
     // generate equivalently sized volume for masks
-    auto bin_masks = counts.clone();
+    auto target_mask = pad(mask0, 0, 0, 0, 0, pad_min_z, pad_max_z, unique_value);
+    auto counts_mask = target_mask.clone();
 
+    // for images
     //find valid image values
     threshold(target, counts, unique_value, unique_value);
     invert_binary(counts, counts);
@@ -172,6 +174,32 @@ int main(int argc, char* argv[])
       add(binary, counts, counts);
     }
 
+    // for masks
+    // find valid mask values
+
+    threshold(target_mask, counts_mask, unique_value, unique_value);
+    invert_binary(counts_mask, counts_mask);
+    mul(target_mask, counts_mask, target_mask);
+
+    // iterate over remaining masks and add to stitched volume
+    auto binary_mask = target_mask.clone();
+    auto empty_mask = target_mask.clone();
+    for (int i = 0; i < masks.size(); i++)
+    {
+      threshold(counts_mask, empty_mask, 0, 0);
+      auto trg_mask = target_mask.clone();
+      resample(masks[i], trg_mask, mia::LINEAR, unique_value);
+      threshold(trg_mask, binary_mask, unique_value, unique_value);
+      invert_binary(binary_mask, binary_mask);
+
+      //take only value for empty_mask voxels, otherwise average values in overlap areas
+      if (!average_overlap) mul(empty_mask, binary_mask, binary_mask);
+
+      mul(trg_mask, binary_mask, trg_mask);
+      add(trg_mask, target_mask, target_mask);
+      add(binary_mask, counts_mask, counts_mask);
+    }
+
     //remove extra empty slices introduced to rounding of pad values
     int central_x = counts.sizeX() / 2;
     int central_y = counts.sizeY() / 2;
@@ -186,6 +214,8 @@ int main(int argc, char* argv[])
       off_z_max--;
     }
 
+    // images
+
     threshold(counts, binary, 0, 0);
     add(binary, counts, counts);
     div(target, counts, target);
@@ -194,6 +224,17 @@ int main(int argc, char* argv[])
 
     target.dataType(mia::FLOAT);
     itkio::save(target, filename_out);
+
+    // masks
+
+    threshold(counts_mask, binary_mask, 0, 0);
+    add(binary_mask, counts_mask, counts_mask);
+    div(target_mask, counts_mask, target_mask);
+
+    target_mask = subimage(target_mask, 0, 0, off_z_min, target_mask.sizeX(), target_mask.sizeY(), off_z_max - off_z_min).clone();
+
+    target_mask.dataType(mia::INT);
+    itkio::save(target_mask, "mask.nii.gz");
 
     auto stop = ch::high_resolution_clock::now();
     std::cout << "done. took " << ch::duration_cast< ch::milliseconds >(stop-start).count() << " ms" << std::endl;
