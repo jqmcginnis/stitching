@@ -45,6 +45,7 @@ void strings_to_values(const std::vector<std::string>& string_seq, std::vector<T
 int main(int argc, char* argv[])
 {
   std::vector<std::string> sfiles;
+  std::vector<std::string> mfiles;
   std::string filename_out;
   int margin = 0;
   bool average_overlap = false;
@@ -56,9 +57,10 @@ int main(int argc, char* argv[])
     options.add_options()
     ("help,h", "produce help message")
     ("images,i", po::value<std::vector<std::string>>(&sfiles)->multitoken(), "filenames of images")
+    ("masks,m", po::value<std::vector<std::string>>(&mfiles)->multitoken(), "filenames of masks")
     ("output,o", po::value<std::string>(&filename_out), "filename of output image")
-    ("margin,m", po::value<int>(&margin), "image margin that is ignored when stitching")
     ("averaging,a", po::bool_switch(&average_overlap)->default_value(false), "enable averaging in overlap areas")
+    ("margin", po::value<int>(&margin), "image margin that is ignored when stitching")
     ;
 
     po::variables_map vm;
@@ -82,6 +84,13 @@ int main(int argc, char* argv[])
   std::vector<std::string> files;
   strings_to_values(sfiles, files);
 
+  // convert string-based parameters to values for masks
+  std::vector<std::string> mask_files;
+  strings_to_values(mfiles, mask_files);
+
+  std::cout << "Number of Image files: " << files.size() << std::endl;
+  std::cout << "Number of Mask files: " << files.size() << std::endl;
+
   if (files.size() > 1)
   {
     namespace ch = std::chrono;
@@ -90,19 +99,31 @@ int main(int argc, char* argv[])
 
     float unique_value = -123456789.0;
     auto loaded = itkio::load(files[0]);
+    auto loaded_mask = itkio::load(mask_files[0]);
 
     // determine physical extent of stitched volume
     auto image0 = subimage(loaded, 0, 0, margin, loaded.sizeX(), loaded.sizeY(), loaded.sizeZ()-2*margin).clone();
+    auto mask0 = subimage(loaded_mask, 0, 0, margin, loaded.sizeX(), loaded.sizeY(), loaded.sizeZ()-2*margin).clone();
+
+    // determine extents of first image
     auto image0_min_extent = image0.origin()[2];
     auto image0_max_extent = image0.origin()[2] + image0.sizeZ() * image0.spacing()[2];
     auto min_extent = image0_min_extent;
     auto max_extent = image0_max_extent;
+
     std::vector<Image> images;
+    std::vector<Image> masks;
+
     for (int i = 1; i < files.size(); i++)
     {
       auto temp = itkio::load(files[i]);
       auto image = subimage(temp, 0, 0, margin, temp.sizeX(), temp.sizeY(), temp.sizeZ()-2*margin).clone();
+      auto temp_mask = itkio::load(mask_files[i]);
+      auto mask = subimage(temp_mask, 0, 0, margin, temp.sizeX(), temp.sizeY(), temp.sizeZ()-2*margin).clone();
+
       images.push_back(image);
+      masks.push_back(mask);
+
       if (image.origin()[2] < min_extent)
       {
         min_extent = image.origin()[2];
@@ -118,6 +139,14 @@ int main(int argc, char* argv[])
     auto pad_max_z = static_cast<int>((max_extent - image0_max_extent) / image0.spacing()[2] + 1);
     auto target = pad(image0, 0, 0, 0, 0, pad_min_z, pad_max_z, unique_value);
     auto counts = target.clone();
+
+    std::cout << std::endl;
+    std::cout << "X-Size of counts: " << counts.sizeX() << std::endl;
+    std::cout << "Y-Size of counts: " << counts.sizeY() << std::endl;
+    std::cout << "Z-Size of counts: " << counts.sizeZ() << std::endl;
+
+    // generate equivalently sized volume for masks
+    auto bin_masks = counts.clone();
 
     //find valid image values
     threshold(target, counts, unique_value, unique_value);
