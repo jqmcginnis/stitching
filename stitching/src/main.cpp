@@ -23,6 +23,8 @@
 #include <iostream>
 #include <vector>
 #include <chrono>
+#include <sstream>
+#include <string>
 
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
@@ -120,44 +122,87 @@ int main(int argc, char* argv[])
     // generate stitched volume and fill in first image
     auto pad_min_z = static_cast<int>((image0_min_extent - min_extent) / image0.spacing()[2] + 1);
     auto pad_max_z = static_cast<int>((max_extent - image0_max_extent) / image0.spacing()[2] + 1);
-    auto target = pad(image0, 0, 0, 0, 0, pad_min_z, pad_max_z, unique_value);
+    auto target = pad(image0, 0, 0, 0, 0, pad_min_z, pad_max_z, unique_value); // stitched extent
+
+    target.dataType(mia::FLOAT);
+    itkio::save(target, "target_step1.nii.gz");
 
     std::cout<< target.origin() <<std::endl;
     std::cout<< target.sizeX() <<std::endl;
     std::cout<< target.sizeY() <<std::endl;
     std::cout<< target.sizeZ() <<std::endl;
-    auto counts = target.clone();
+
+    auto counts = target.clone(); // has the same dimensions as stitched images
+
+    //output first intermediate result
+    target.dataType(mia::FLOAT);
+    itkio::save(target, "c++_intermediate_result1.nii.gz");
 
     //find valid image values
-    threshold(target, counts, unique_value, unique_value);
+    // set all elements of counts to 0, except 
+    threshold(target, counts, unique_value, unique_value); // counts is the output
+    // set all elements of counts to 1
+
     invert_binary(counts, counts);
-    mul(target, counts, target);
+    itkio::save(counts, "counts.nii.gz");
+    mul(target, counts, target); // output is in target
+
+    itkio::save(target, "target_step2.nii.gz");
+
+    //output first intermediate result
+    target.dataType(mia::FLOAT);
+    itkio::save(target, "c++_intermediate_result2.nii.gz");
 
     // iterate over remaining images and add to stitched volume
-    auto binary = target.clone();
+    auto binary = target.clone(); // clone to have the target dimensions
     auto empty = target.clone();
     for (int i = 0; i < images.size(); i++)
     {
-      threshold(counts, empty, 0, 0);
+      threshold(counts, empty, 0, 0); // empty is output
+      itkio::save(target, "empty0.nii.gz");
       auto trg = target.clone();
       std::cout<< "Trg Z Size" << trg.sizeZ() <<std::endl;
-      resample(images[i], trg, mia::LINEAR, unique_value);
+      resample(images[i], trg, mia::LINEAR, unique_value); // trg is output
+
+
+
       std::cout<< "Trg Z Size" << trg.sizeZ() <<std::endl;
-      threshold(trg, binary, unique_value, unique_value);
+      threshold(trg, binary, unique_value, unique_value); // binary is output
       std::cout<< "Trg Z Size" << trg.sizeZ() <<std::endl;
-      invert_binary(binary, binary);
+      invert_binary(binary, binary); // binary is output
 
       //take only value for empty voxels, otherwise average values in overlap areas
-      if (!average_overlap) mul(empty, binary, binary);
+      if (!average_overlap) mul(empty, binary, binary); // output is saved in binary
 
       mul(trg, binary, trg);
+
+      if (i==0){
+        itkio::save(trg, "mul_trg0.nii.gz");
+      }
+
       add(trg, target, target);
+      if (i==0){
+        itkio::save(target, "add_target0.nii.gz");
+      }
+
       add(binary, counts, counts);
+      if (i==0){
+        itkio::save(counts, "cnts_trg0.nii.gz");
+      }
+
+      std::stringstream ss;
+      ss << "c++_trg_" << i << ".nii.gz"; 
+      std::string s = ss.str();
+      target.dataType(mia::FLOAT);
+      itkio::save(trg, s);
     }
 
-    std::cout << counts.sizeX()<< std::endl;
-    std::cout << counts.sizeY()<< std::endl;
-    std::cout << counts.sizeZ()<< std::endl;
+    target.dataType(mia::FLOAT);
+    itkio::save(target, "c++_intermediate_result3.nii.gz");
+
+    std::cout << "Counts X" << counts.sizeX()<< std::endl;
+    std::cout << "Counts Y" << counts.sizeY()<< std::endl;
+    std::cout << "Counts Z" << counts.sizeZ()<< std::endl;
 
     //remove extra empty slices introduced to rounding of pad values
     int central_x = counts.sizeX() / 2;
@@ -167,10 +212,11 @@ int main(int argc, char* argv[])
     std::cout<<central_x<<std::endl;
     std::cout<<central_y<<std::endl;
 
-    std::cout << counts.sizeX()<< std::endl;
-    std::cout << counts.sizeY()<< std::endl;
-    std::cout << counts.sizeZ()<< std::endl;
+    std::cout << "Counts X" << counts.sizeX()<< std::endl;
+    std::cout << "Counts Y" << counts.sizeY()<< std::endl;
+    std::cout << "Counts Z" << counts.sizeZ()<< std::endl;
 
+    // crop z axis and delete empty slices (from top till bottom and vice versa)
     int off_z_min = 0;
     while (counts(central_x, central_y, off_z_min) == 0 && off_z_min < counts.sizeZ() - 1)
     {
@@ -192,6 +238,10 @@ int main(int argc, char* argv[])
     div(target, counts, target);
 
     target = subimage(target, 0, 0, off_z_min, target.sizeX(), target.sizeY(), off_z_max - off_z_min).clone();
+
+    std::cout << "Target X" << target.sizeX()<< std::endl;
+    std::cout << "Target Y" << target.sizeY()<< std::endl;
+    std::cout << "Target Z" << target.sizeZ()<< std::endl;
 
     target.dataType(mia::FLOAT);
     itkio::save(target, filename_out);

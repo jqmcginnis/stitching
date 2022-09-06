@@ -62,7 +62,7 @@ def main(files: list[str], filename_out: str = "", margin: int = 0, average_over
         def get_threshold_as_np(input):
             # find valid image values
             arr = sitk.GetArrayFromImage(input)
-            arr[arr < -100] = -128
+            arr[arr < -100] = unique_value
             arr[arr > -100] = 1
             arr[arr < -100] = 0
             return arr
@@ -75,10 +75,22 @@ def main(files: list[str], filename_out: str = "", margin: int = 0, average_over
 
         target_arr = sitk.GetArrayFromImage(target)
         counts_arr = get_threshold_as_np(target)
+
+        # output first intermediate result
+
+        img = np_to_skit(target_arr, target)
+        sitk.WriteImage(img, "py_intermediate_result1.nii.gz")
+
         target_arr *= counts_arr
-        target_arr = target_arr / target_arr.max()
+
+        img = np_to_skit(target_arr, target)
+        sitk.WriteImage(img, "py_intermediate_result2.nii.gz")
+
+        # omit normalization step for now (JM)
+        # target_arr = target_arr / target_arr.max()
 
         # iterate over remaining images and add to stitched volume
+        i = 0
 
         for cur_file, cur_img in zip(files[1:], images):
 
@@ -102,12 +114,21 @@ def main(files: list[str], filename_out: str = "", margin: int = 0, average_over
                 binary_arr = empty_arr * binary_arr
 
             cur_arr = cur_arr * binary_arr
-            target_arr = cur_arr / cur_arr.max() + target_arr  #
+            # omit normalization step for now (JM)
+            # target_arr = cur_arr / cur_arr.max() + target_arr  #
+
+            img = np_to_skit(cur_arr, cur_img)
+            sitk.WriteImage(img, f"py_trg_{i}.nii.gz")
+            i+= 1
+
+            target_arr = cur_arr + target_arr  
             counts_arr = binary_arr + counts_arr
         counts_arr[counts_arr == 0] = 1
         target_arr /= counts_arr
 
         out_skit = np_to_skit(target_arr, target)
+
+        sitk.WriteImage(out_skit, "py_intermediate_result3.nii.gz")
 
         '''
         off_z_min = 0
