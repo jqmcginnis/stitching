@@ -209,7 +209,7 @@ if __name__ == "__main__":
         normalize=args.normalize,
         margin=args.margin,
         average_overlap=args.averaging,
-        mean_shift=args.mean,
+        mean_shift=args.mean_shift,
         reverse=args.reverse,
         verbose=args.verbose,
     )

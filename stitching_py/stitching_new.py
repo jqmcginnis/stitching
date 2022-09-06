@@ -1,24 +1,17 @@
 # stitching - command line tool for whole-body image stitching.#
-# Copyright 2016 Ben Glocker <b.glocker@imperial.ac.uk> and Robert Graf (Python translation)#
+# Copyright 2016 Ben Glocker <b.glocker@imperial.ac.uk> and 2022 Robert Graf (Python translation)#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at#
-#    h  ttp://www.apache.org/licenses/LICENSE-2.0#
+#    http://www.apache.org/licenses/LICENSE-2.0#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations
-
 import SimpleITK as sitk
 import numpy as np
-from pathlib import Path
-import sys
-
-file = Path(__file__).resolve()
-sys.path.append(str(file.parents[1]))
-
 from sitk_utils import padZ, resample_img, to_str_sitk
 import time
 
@@ -27,7 +20,7 @@ def main(files: list[str], filename_out: str = "", margin: int = 0, average_over
     stime = time.time()
     if len(files) > 1:
         print("stitching image...")
-        unique_value: float = -1234567
+        unique_value: float = -123456789.0
         loaded = sitk.Cast(sitk.ReadImage(files[0]), sitk.sitkFloat32)  # copy
 
         if margin != 0:
@@ -51,12 +44,20 @@ def main(files: list[str], filename_out: str = "", margin: int = 0, average_over
             images.append(image)
             min_extent = min(min_extent, image.GetOrigin()[2])
             max_extent = max(max_extent, image.GetOrigin()[2] + image.GetSize()[2] * image.GetSpacing()[2])
+        if verbose:
+            print("[*] take x,y size from", files[0])
+
+        print("min_extent:", min_extent)
+        print("max_extent:", max_extent)
 
         # generate stitched volume and fill in first image
         pad_min_z = int((image0_min_extent - min_extent) / image0.GetSpacing()[2] + 1)
         pad_max_z = int((max_extent - image0_max_extent) / image0.GetSpacing()[2] + 1)
 
         target = padZ(image0, pad_min_z, pad_max_z, unique_value)
+
+        print(target.GetOrigin())
+        print(target.GetSize())
 
         def get_threshold_as_np(input):
             # find valid image values
@@ -79,12 +80,14 @@ def main(files: list[str], filename_out: str = "", margin: int = 0, average_over
 
         # iterate over remaining images and add to stitched volume
 
-        for cur_img in images:
+        for cur_file, cur_img in zip(files[1:], images):
 
             empty_arr = 1 - counts_arr
 
             cur_img_min_extent = cur_img.GetOrigin()[2]
             cur_img_max_extent = cur_img.GetOrigin()[2] + cur_img.GetSize()[2] * cur_img.GetSpacing()[2]
+            if verbose:
+                print("[*] stich next file", cur_file)
             pad_min_z = int((cur_img_min_extent - min_extent) / cur_img.GetSpacing()[2] + 1)
             pad_max_z = int((max_extent - cur_img_max_extent) / cur_img.GetSpacing()[2] + 1)
             cur_img = padZ(cur_img, pad_min_z, pad_max_z, unique_value)
@@ -103,8 +106,10 @@ def main(files: list[str], filename_out: str = "", margin: int = 0, average_over
             counts_arr = binary_arr + counts_arr
         counts_arr[counts_arr == 0] = 1
         target_arr /= counts_arr
+
         out_skit = np_to_skit(target_arr, target)
 
+        '''
         off_z_min = 0
 
         while target_arr[:, :, off_z_min].sum() == 0:
@@ -113,6 +118,46 @@ def main(files: list[str], filename_out: str = "", margin: int = 0, average_over
         off_z_max = -1
         while target_arr[:, :, off_z_max].sum() == 0:
             off_z_max -= 1
+        '''
+
+        # reshape to comply to Glocker et al.
+
+        print(counts_arr.shape)
+
+
+        print(counts_arr.shape)
+
+        print(counts_arr.shape[0])
+        print(counts_arr.shape[1])
+        print(counts_arr.shape[2])
+
+        counts_arr = np.transpose(counts_arr, (2,1,0))
+        target_arr = np.transpose(target_arr, (2,1,0))
+
+        central_x = int(counts_arr.shape[0] / 2)
+        central_y = int(counts_arr.shape[1] / 2)
+
+        print("Central X, Central Y", central_x, central_y)
+
+        off_z_min = 0
+
+        print(counts_arr.shape)
+
+        while ((counts_arr[central_x, central_y, off_z_min] == 0) and (off_z_min < counts_arr.shape[2] -1)):
+            off_z_min += 1
+
+        off_z_max = counts_arr.shape[2]
+        print("init zmax", off_z_max)
+        print(off_z_max)
+        while (counts_arr[central_x, central_y, off_z_max -1] == 0) and (off_z_max >0):
+            off_z_max -= 1
+
+        print(out_skit.GetSize())
+
+        off_z_min = 4
+
+        print("zim/zmax", off_z_min, off_z_max)
+
         out_skit: sitk.Image = out_skit[:, :, off_z_min:off_z_max]  #
         if verbose:
             print(to_str_sitk(out_skit))
@@ -130,7 +175,6 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--output", type=str, default="out.nii.gz", help="filename of output image")
     parser.add_argument("-m", "--margin", type=int, default=0, help="image margin that is ignored when stitching")
     parser.add_argument("-a", "--averaging", default=False, action=argparse.BooleanOptionalAction, help="enable averaging in overlap areas")
-
     parser.add_argument("-v", "--verbose", default=False, action=argparse.BooleanOptionalAction)
 
     args = parser.parse_args()

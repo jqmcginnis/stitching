@@ -112,11 +112,20 @@ int main(int argc, char* argv[])
         max_extent = image.origin()[2] + image.sizeZ() * image.spacing()[2];
       }
     }
+    std::cout << std::endl;
+
+    std::cout << "Min:" << min_extent << std::endl;
+    std::cout << "Max:" << max_extent << std::endl;
 
     // generate stitched volume and fill in first image
     auto pad_min_z = static_cast<int>((image0_min_extent - min_extent) / image0.spacing()[2] + 1);
     auto pad_max_z = static_cast<int>((max_extent - image0_max_extent) / image0.spacing()[2] + 1);
     auto target = pad(image0, 0, 0, 0, 0, pad_min_z, pad_max_z, unique_value);
+
+    std::cout<< target.origin() <<std::endl;
+    std::cout<< target.sizeX() <<std::endl;
+    std::cout<< target.sizeY() <<std::endl;
+    std::cout<< target.sizeZ() <<std::endl;
     auto counts = target.clone();
 
     //find valid image values
@@ -131,8 +140,11 @@ int main(int argc, char* argv[])
     {
       threshold(counts, empty, 0, 0);
       auto trg = target.clone();
+      std::cout<< "Trg Z Size" << trg.sizeZ() <<std::endl;
       resample(images[i], trg, mia::LINEAR, unique_value);
+      std::cout<< "Trg Z Size" << trg.sizeZ() <<std::endl;
       threshold(trg, binary, unique_value, unique_value);
+      std::cout<< "Trg Z Size" << trg.sizeZ() <<std::endl;
       invert_binary(binary, binary);
 
       //take only value for empty voxels, otherwise average values in overlap areas
@@ -143,19 +155,37 @@ int main(int argc, char* argv[])
       add(binary, counts, counts);
     }
 
+    std::cout << counts.sizeX()<< std::endl;
+    std::cout << counts.sizeY()<< std::endl;
+    std::cout << counts.sizeZ()<< std::endl;
+
     //remove extra empty slices introduced to rounding of pad values
     int central_x = counts.sizeX() / 2;
     int central_y = counts.sizeY() / 2;
+
+    std::cout << "central x and y" << std::endl;
+    std::cout<<central_x<<std::endl;
+    std::cout<<central_y<<std::endl;
+
+    std::cout << counts.sizeX()<< std::endl;
+    std::cout << counts.sizeY()<< std::endl;
+    std::cout << counts.sizeZ()<< std::endl;
+
     int off_z_min = 0;
     while (counts(central_x, central_y, off_z_min) == 0 && off_z_min < counts.sizeZ() - 1)
     {
       off_z_min++;
     }
     int off_z_max = counts.sizeZ();
+    std::cout << "init z max" << off_z_max << std::endl;
+    std::cout << off_z_max <<std::endl;
     while (counts(central_x, central_y, off_z_max - 1) == 0 && off_z_max > 0)
     {
       off_z_max--;
     }
+
+    std::cout << off_z_min << std::endl;
+    std::cout << off_z_max << std::endl;
 
     threshold(counts, binary, 0, 0);
     add(binary, counts, counts);
