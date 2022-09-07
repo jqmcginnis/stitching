@@ -136,7 +136,7 @@ int main(int argc, char* argv[])
 
     //output first intermediate result
     target.dataType(mia::FLOAT);
-    itkio::save(target, "c++_intermediate_result1.nii.gz");
+    itkio::save(target, "c++_intermediate_result1.nii.gz"); // these are the same
 
     //find valid image values
     // set all elements of counts to 0, except 
@@ -151,7 +151,7 @@ int main(int argc, char* argv[])
 
     //output first intermediate result
     target.dataType(mia::FLOAT);
-    itkio::save(target, "c++_intermediate_result2.nii.gz");
+    itkio::save(target, "c++_intermediate_result2.nii.gz"); // these are already the same
 
     // iterate over remaining images and add to stitched volume
     auto binary = target.clone(); // clone to have the target dimensions
@@ -162,9 +162,16 @@ int main(int argc, char* argv[])
       itkio::save(target, "empty0.nii.gz");
       auto trg = target.clone();
       std::cout<< "Trg Z Size" << trg.sizeZ() <<std::endl;
-      resample(images[i], trg, mia::LINEAR, unique_value); // trg is output
 
+      // this is misleading - we do resample here, but we do not average here!
+      // resample(images[i], trg, mia::LINEAR, unique_value); // trg is output
+      resample(images[i], trg, mia::LINEAR, 0); //unique_value); // trg is output
 
+      std::stringstream ss;
+      ss << "c++_trg_" << i << ".nii.gz"; 
+      std::string s = ss.str();
+      target.dataType(mia::FLOAT);
+      itkio::save(trg, s);
 
       std::cout<< "Trg Z Size" << trg.sizeZ() <<std::endl;
       threshold(trg, binary, unique_value, unique_value); // binary is output
@@ -172,7 +179,7 @@ int main(int argc, char* argv[])
       invert_binary(binary, binary); // binary is output
 
       //take only value for empty voxels, otherwise average values in overlap areas
-      if (!average_overlap) mul(empty, binary, binary); // output is saved in binary
+      if (!average_overlap) mul(empty, binary, binary); // output is saved in binary, is executed if average overlap is not activated
 
       mul(trg, binary, trg);
 
@@ -190,11 +197,13 @@ int main(int argc, char* argv[])
         itkio::save(counts, "cnts_trg0.nii.gz");
       }
 
+      /*
       std::stringstream ss;
       ss << "c++_trg_" << i << ".nii.gz"; 
       std::string s = ss.str();
       target.dataType(mia::FLOAT);
       itkio::save(trg, s);
+      */
     }
 
     target.dataType(mia::FLOAT);

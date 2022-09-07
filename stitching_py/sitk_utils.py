@@ -9,7 +9,7 @@ def resample_mask(mask: sitk.Image, ref_img: sitk.Image):
     return sitk.Resample(mask, ref_img, sitk.Transform(), sitk.NearestNeighbor, 0, mask.GetPixelID())
 
 
-def resample_img(img: sitk.Image, ref_img: sitk.Image, verbose=True):
+def resample_img(img: sitk.Image, ref_img: sitk.Image, default_val:float=0.5, verbose=True):
     if (
         img.GetSize() == ref_img.GetSize()
         and img.GetSpacing() == ref_img.GetSpacing()
@@ -20,7 +20,7 @@ def resample_img(img: sitk.Image, ref_img: sitk.Image, verbose=True):
         return img
     print(f"[*] Resample Image to {to_str_sitk(ref_img)}") if verbose else None
     # Resample(image1, referenceImage, transform, interpolator, defaultPixelValue, outputPixelType, useNearestNeighborExtrapolator)
-    return sitk.Resample(img, ref_img, sitk.Transform(), sitk.sitkLinear, 0, img.GetPixelID())
+    return sitk.Resample(img, ref_img, sitk.Transform(), sitk.sitkLinear, default_val, img.GetPixelID())
 
 
 def get_3D_corners(img: sitk.Image):

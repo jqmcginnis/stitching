@@ -79,12 +79,12 @@ def main(files: list[str], filename_out: str = "", margin: int = 0, average_over
         # output first intermediate result
 
         img = np_to_skit(target_arr, target)
-        sitk.WriteImage(img, "py_intermediate_result1.nii.gz")
+        sitk.WriteImage(img, "py_intermediate_result1.nii.gz") # these are the same
 
         target_arr *= counts_arr
 
         img = np_to_skit(target_arr, target)
-        sitk.WriteImage(img, "py_intermediate_result2.nii.gz")
+        sitk.WriteImage(img, "py_intermediate_result2.nii.gz") # these are the same
 
         # omit normalization step for now (JM)
         # target_arr = target_arr / target_arr.max()
@@ -103,10 +103,17 @@ def main(files: list[str], filename_out: str = "", margin: int = 0, average_over
             pad_min_z = int((cur_img_min_extent - min_extent) / cur_img.GetSpacing()[2] + 1)
             pad_max_z = int((max_extent - cur_img_max_extent) / cur_img.GetSpacing()[2] + 1)
             cur_img = padZ(cur_img, pad_min_z, pad_max_z, unique_value)
+
+
             # Resample to same space
-            cur_img = resample_img(cur_img, target, verbose)
+            cur_img = resample_img(cur_img, target, 3.14, verbose)
             # print(min)
             cur_arr = sitk.GetArrayFromImage(cur_img).copy()
+
+            img = np_to_skit(cur_arr, cur_img)
+            sitk.WriteImage(img, f"py_trg_{i}.nii.gz")
+
+            # output the next image
 
             binary_arr = get_threshold_as_np(cur_img)
             # take only value for empty voxels, otherwise average values in overlap areas
@@ -122,6 +129,7 @@ def main(files: list[str], filename_out: str = "", margin: int = 0, average_over
             i+= 1
 
             target_arr = cur_arr + target_arr  
+
             counts_arr = binary_arr + counts_arr
         counts_arr[counts_arr == 0] = 1
         target_arr /= counts_arr
