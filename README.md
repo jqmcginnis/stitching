@@ -15,6 +15,13 @@
 
 If you make use of *stitching*, it would be great if you cite this paper in any resulting publications.
 
+## Notice
+
+We have modified stitching's behavior with respect to the deletion of empty slices, allowing to use the same command line tool,
+to stitch both, images (i.e. 3D MRI with intensity values) and masks (i.e. a binary mask, e.g. indicating the spinal cord segmentation or lesions).
+
+Please refer to the [code](stitching/src/main.cpp) to examine these changes.
+
 ## Dependencies
 
 *stitching* depends on several third-party libraries:

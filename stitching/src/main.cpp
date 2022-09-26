@@ -3,6 +3,10 @@
 *
 * Copyright 2016 Ben Glocker <b.glocker@imperial.ac.uk>
 *
+* To support the stitching of lesion masks, some modifications have been made
+* by Julian McGinnis <julian.mcginnis@tum.de> (2022).
+* The differences are visible in lines 150 - 172.
+*
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
 * You may obtain a copy of the License at
@@ -143,19 +147,29 @@ int main(int argc, char* argv[])
       add(binary, counts, counts);
     }
 
-    //remove extra empty slices introduced to rounding of pad values
-    int central_x = counts.sizeX() / 2;
-    int central_y = counts.sizeY() / 2;
+    // JM: to support both, images and lesion masks, we omit deleting of empty slices 
+    // JM: and allow the stitched images/masks to have empty slices.
+
+    /*
+      //remove extra empty slices introduced to rounding of pad values
+      int central_x = counts.sizeX() / 2;
+      int central_y = counts.sizeY() / 2;
+      int off_z_min = 0;
+      while (counts(central_x, central_y, off_z_min) == 0 && off_z_min < counts.sizeZ() - 1)
+      {
+        off_z_min++;
+      }
+      int off_z_max = counts.sizeZ();
+      while (counts(central_x, central_y, off_z_max - 1) == 0 && off_z_max > 0)
+      {
+        off_z_max--;
+      }
+    */ 
+
+
+    // JM: to comply with the code style and introduce little changes, we keep the variables
     int off_z_min = 0;
-    while (counts(central_x, central_y, off_z_min) == 0 && off_z_min < counts.sizeZ() - 1)
-    {
-      off_z_min++;
-    }
     int off_z_max = counts.sizeZ();
-    while (counts(central_x, central_y, off_z_max - 1) == 0 && off_z_max > 0)
-    {
-      off_z_max--;
-    }
 
     threshold(counts, binary, 0, 0);
     add(binary, counts, counts);
